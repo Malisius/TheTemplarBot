@@ -85,6 +85,7 @@ class InstagramAPI:
     # IGDataPath          # Data storage path
 
     def __init__(self, username, password, debug=False, IGDataPath=None):
+        print("Loading modified InstaAPI")
         m = hashlib.md5()
         m.update(username.encode('utf-8') + password.encode('utf-8'))
         self.device_id = self.generateDeviceId(m.hexdigest())

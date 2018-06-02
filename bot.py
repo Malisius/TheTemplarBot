@@ -1,6 +1,8 @@
+#This code made available under GNU GPLv3. See LICENSE for more info.
+
 import telebot
 from telebot import types
-from InstagramAPI import InstagramAPI
+from InstagramAPI.InstagramAPI import InstagramAPI
 from time import sleep
 import traceback
 from threading import Thread
@@ -38,7 +40,13 @@ def handle_message(message):
             #make an empty interaction for this user if we don't already have one
             #Apparently python breaks horribly if I don't do this here
             if sender not in interactions:
-                interactions[sender] = {'waitingonusername':False, 'waitingonpassword':False, 'waitingoncount':False, 'waitingonchoice1':False, 'waitingonchoice2':False, 'waitingonplatform':False}
+                interactions[sender] = {'waitingonusername':False, 'waitingonpassword':False, 'waitingoncount':False, 'waitingonchoice1':False, 'waitingonchoice2':False, 'waitingonplatform':False, 'waiting':False}
+                
+            #If this user has been put on hold, tell them to sod off and ignore this message
+            if interactions[sender]['waiting']:
+                bot.send_message(message.chat.id, "Working, please wait before sending another message.")
+                return False
+                
             #Incoming start command
             if "/start" in message.text:
                 #Get started by prompting for an instagram username
@@ -50,6 +58,9 @@ def handle_message(message):
             #We'll check to see if the username is valid immediately, and if it's not,
             #we'll reply with an error and return out so they can try again
             elif(interactions[sender]['waitingonusername']):
+                #Put the user on hold
+                interactions[sender]['waiting'] = True
+                
                 bot.send_message(message.chat.id, "Okay, let me try to find your username.")
                 interactions[sender]['instauser'] = message.text
                 interactions[sender]['api'] = InstagramAPI(insta_user, insta_password)
@@ -81,6 +92,9 @@ def handle_message(message):
                     bot.send_message(message.chat.id, "You can select an option below, or type any integer.")
                     #bot.send_message(message.chat.id, "Careful though; selecting ALL might return a Fatal Error. Use with caution.")
                     interactions[sender]['waitingoncount'] = True
+                    
+                    #Take the user off hold
+                    interactions[sender]['waiting'] = False
                 #If we failed to login, let the user know how to contact us. This is not an easily solved problem
                 else:
                     bot.reply_to(message, "Failed to log in. Contact @peteroertel on Instagram.")
@@ -95,6 +109,9 @@ def handle_message(message):
                     #If the user chose more than 1k, bring it down to 1k
                     if interactions[sender]['count'] > 1000:
                         interactions[sender]['count'] = 1000
+                    
+                    #Put the user on hold
+                    interactions[sender]['waiting'] = True
                         
                     interactions[sender]['waitingoncount'] = False
                     markup = types.ReplyKeyboardMarkup()
@@ -107,6 +124,8 @@ def handle_message(message):
                     bot.send_message(message.chat.id, "2. Accounts that follow me and more than 1000 people.")
                     bot.send_message(message.chat.id, "3. Accounts that follow me, 1000+ people, and who have fewer than 10 posts.")
                     interactions[sender]['waitingonchoice1'] = True
+                    #Take the user off hold
+                    interactions[sender]['waiting'] = False
                 except ValueError:
                     bot.reply_to(message, "Not a valid number, please select one of the options below.")
             #Okay, choice incoming. Here's where all the magic really happens
@@ -116,6 +135,9 @@ def handle_message(message):
                     bot.send_message(message.chat.id, "Please select one of the buttons below.")
                     return False
                 else:
+                    #Put the user on hold
+                    interactions[sender]['waiting'] = True
+                    
                     #Pretty sure the choice is valid, so save it and propmpt for the next one
                     interactions[sender]['choice1'] = message.text
                     markup = types.ReplyKeyboardMarkup()
@@ -131,6 +153,8 @@ def handle_message(message):
                     bot.send_message(message.chat.id, "4. Skip this step", reply_markup=markup)
                     interactions[sender]['waitingonchoice1'] = False
                     interactions[sender]['waitingonchoice2'] = True
+                    #Take the user off hold
+                    interactions[sender]['waiting'] = False
             elif(interactions[sender]['waitingonchoice2']):
                 #Check for a valid choice real quick
                 if ("1." not in message.text) and ("2." not in message.text) and ("3." not in message.text) and ("4." not in message.text):
@@ -138,17 +162,15 @@ def handle_message(message):
                     return False
                 else:
                     interactions[sender]['choice2'] = message.text
+                    
+                #Put the user on hold
+                interactions[sender]['waiting'] = True    
+                
                 #Let the user know we're working
                 bot.send_message(message.chat.id, "Okay, give me just a minute to work.")
                 
                 #No matter what they choose, we'll need to call down their followers
-                #If the user selected a count higher than 200, just get all followers
-                if interactions[sender]['count'] > 200 or interactions[sender]['count'] == 0:
-                    followers = interactions[sender]['api'].getTotalFollowers(interactions[sender]['user']['pk'], limit=interactions[sender]['count'])
-                #Otherwise, just pull the first page down
-                else:
-                    interactions[sender]['api'].getUserFollowers(interactions[sender]['user']['pk'])
-                    followers = interactions[sender]['api'].LastJson['users']
+                followers = interactions[sender]['api'].getTotalFollowers(interactions[sender]['user']['pk'], limit=interactions[sender]['count'])
                 
                 interactions[sender]['followers'] = {}
                 #Immediately pull out all the usernames into a list
@@ -187,14 +209,14 @@ def handle_message(message):
                 user = {}
                 #Start a counter so we can give updates to our user on how we're doing
                 count = 0
+                total = len(interactions[sender]['followers'])
+                checkbreak = 10
+                if total <= 200:
+                    checkbreak = 5
                 #populate the dict before we start filtering
                 #We're doing this now so we don't have to make tons of api calls later more than once
                 for i in interactions[sender]['followers']:
                     #If we're at an increment of 50, let the user know
-                    total = len(interactions[sender]['followers'])
-                    checkbreak = 10
-                    if total <= 200:
-                        checkbreak = 5
                     if count % (total//checkbreak) == 0:
                         print("Checked " + str(count) + "/" + str(len(interactions[sender]['followers'])))
                         bot.send_message(message.chat.id, "Collected " + str(count) + " out of " + str(len(interactions[sender]['followers'])) + " followers.")
@@ -296,46 +318,23 @@ def handle_message(message):
                     bot.send_message(message.chat.id, "Huh, I actually didn't find any accounts matching the criteria.")
                     bot.send_message(message.chat.id, "If you'd like to perform another check, just reply with /start again!")
                 else:
-                    interactions[sender]['waitingonplatform'] = True
-                    interactions[sender]['waitingonchoice2'] = False
-                    itembtn1 = types.KeyboardButton('1.')
-                    itembtn2 = types.KeyboardButton('2.')
-                    markup = types.ReplyKeyboardMarkup()
-                    markup.row(itembtn1, itembtn2)
-                    bot.send_message(message.chat.id, "Finally, which platform would you like to recieve links to?:", reply_markup = markup)
-                    bot.send_message(message.chat.id, "1. Mobile")
-                    bot.send_message(message.chat.id, "2. Web Browser")
-                
-            #If this message is the platform, dump out our results in the requested format
-            elif interactions[sender]['waitingonplatform']:
-                #Set up the string we'll send directly to the user later
-                send_string = ""
-                count = 1
-                #Check for mobile
-                if "1." in message.text:
+                    #Set up the string we'll send directly to the user later
+                    send_string = ""
+                    count = 1
+                   
                     for i in interactions[sender]['followers']:
                         #If we're already at 20 people, send it and start over
-                        if count >= 20:
+                        if count % 20 == 0:
                             bot.send_message(message.chat.id, send_string, parse_mode='HTML', disable_web_page_preview=True)
                             send_string = ""
-                        send_string = send_string + "<a href='instagram://" + interactions[sender]['followers'][i] + "'>" + str(count) + ". " + interactions[sender]['followers'][i] + "</a>\n"
+                        send_string = send_string + str(count) + ". " + "<a href='https://instagram.com/_u/" + interactions[sender]['followers'][i] + "'>@" + interactions[sender]['followers'][i] + "</a>\n"
                         count += 1
                     bot.send_message(message.chat.id, send_string, parse_mode='HTML', disable_web_page_preview=True)    
                     bot.send_message(message.chat.id, "If you'd like to perform another check, just reply with /start again!")
-                #Check for browser links
-                elif "2." in message.text:
-                    for i in interactions[sender]['followers']:
-                        #If we're already at 20 people, send it and start over
-                        if count >= 20:
-                            bot.send_message(message.chat.id, send_string, parse_mode='HTML', disable_web_page_preview=True)
-                            send_string = ""
-                        send_string = send_string + "<a href='https://instagram.com/_u/" + interactions[sender]['followers'][i] + "'>" + str(count) + ". " + interactions[sender]['followers'][i] + "</a>\n"
-                        count += 1
-                    bot.send_message(message.chat.id, send_string, parse_mode='HTML', disable_web_page_preview=True)    
-                    bot.send_message(message.chat.id, "If you'd like to perform another check, just reply with /start again!")
-                #Catch garbage responses
-                else:
-                    bot.send_message(message.chat.id, "Ivalid response. Please choose one of the options below.")
+                    
+                #Take the user off hold
+                interactions[sender]['waiting'] = False
+                    
             #Big-ass catch-all, just in case we're sent garbage when we weren't expecting it
             else:
                 bot.send_message(message.chat.id, "Hello! Reply with /start to get started!")
@@ -357,5 +356,3 @@ while True:
         traceback.print_exc()
         print("FATAL ERROR: Telegram bot failed, restarting.")
         sleep(3)
-
-
