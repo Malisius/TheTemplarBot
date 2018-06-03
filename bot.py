@@ -7,9 +7,9 @@ from time import sleep
 import traceback
 from threading import Thread
 
-telegram_token = "513408030:AAEiNbStV2Equ1QeGF8T7C7HqA17iulEIvY"
-insta_user = 'peteroertel'
-insta_password ='70s!z%g&6UV6qs1'
+telegram_token = <TELETOKEN>
+insta_user = <INSTAUSER>
+insta_password =<INSTAPASS>
 
 bot = telebot.TeleBot(telegram_token)
 #Set up out dictionary with which we'll track our interactions with different users
