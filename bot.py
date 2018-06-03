@@ -9,7 +9,7 @@ from threading import Thread
 
 telegram_token = "513408030:AAEiNbStV2Equ1QeGF8T7C7HqA17iulEIvY"
 insta_user = 'peteroertel'
-insta_password ='$mlxn5w1'
+insta_password ='70s!z%g&6UV6qs1'
 
 bot = telebot.TeleBot(telegram_token)
 #Set up out dictionary with which we'll track our interactions with different users
@@ -88,8 +88,7 @@ def handle_message(message):
                     itembtn3 = types.KeyboardButton('200')
                     itembtn4 = types.KeyboardButton('400')
                     markup.row(itembtn1, itembtn2, itembtn3, itembtn4)
-                    bot.send_message(message.chat.id, "How many of your most recent followers would you like to check?", reply_markup=markup)
-                    bot.send_message(message.chat.id, "You can select an option below, or type any integer.")
+                    bot.send_message(message.chat.id, "How many of your most recent followers would you like to check?\nYou can select an option below, or type any integer.", reply_markup=markup)
                     #bot.send_message(message.chat.id, "Careful though; selecting ALL might return a Fatal Error. Use with caution.")
                     interactions[sender]['waitingoncount'] = True
                     
@@ -119,10 +118,7 @@ def handle_message(message):
                     itembtn2 = types.KeyboardButton('2.')
                     itembtn3 = types.KeyboardButton('3.')
                     markup.row(itembtn1, itembtn2, itembtn3)
-                    bot.send_message(message.chat.id, "Now which accounts would you like to see?", reply_markup=markup)
-                    bot.send_message(message.chat.id, "1. Accounts that follow me and have no posts.")
-                    bot.send_message(message.chat.id, "2. Accounts that follow me and more than 1000 people.")
-                    bot.send_message(message.chat.id, "3. Accounts that follow me, 1000+ people, and who have fewer than 10 posts.")
+                    bot.send_message(message.chat.id, "Now which accounts would you like to see?\n1. Accounts that follow me and have no posts.\n2. Accounts that follow me and more than 1000 people.\n3. Accounts that follow me, 1000+ people, and who have fewer than 10 posts.", reply_markup=markup)
                     interactions[sender]['waitingonchoice1'] = True
                     #Take the user off hold
                     interactions[sender]['waiting'] = False
@@ -146,11 +142,7 @@ def handle_message(message):
                     itembtn3 = types.KeyboardButton('3.')
                     itembtn4 = types.KeyboardButton('4.')
                     markup.row(itembtn1, itembtn2, itembtn3,itembtn4)
-                    bot.send_message(message.chat.id, "Of these accounts, show the ones that haven't: ")
-                    bot.send_message(message.chat.id, "1. Liked any of my 6 most recent posts.")
-                    bot.send_message(message.chat.id, "2. Commented on any of my 6 most recent posts.")
-                    bot.send_message(message.chat.id, "3. Neither liked nor commented on my 6 most recent posts.")
-                    bot.send_message(message.chat.id, "4. Skip this step", reply_markup=markup)
+                    bot.send_message(message.chat.id, "Of these accounts, show the ones that haven't:\n1. Liked any of my 6 most recent posts.\n2. Commented on any of my 6 most recent posts.\n3. Neither liked nor commented on my 6 most recent posts.\n4. Skip this step", reply_markup=markup)
                     interactions[sender]['waitingonchoice1'] = False
                     interactions[sender]['waitingonchoice2'] = True
                     #Take the user off hold
@@ -269,9 +261,11 @@ def handle_message(message):
                 if("2." in interactions[sender]['choice1'] or "3." in interactions[sender]['choice1']):
                     to_delete = []
                     for i in interactions[sender]['followers']:
-                        if user[i]['following_count']:
+                        if user[i]['following_count'] < 1000:
                             to_delete.append(i)
                             print("Removing for to few following: " + interactions[sender]['followers'][i])
+                        else:
+                            print("Keeping for 1000+ followers: " + interactions[sender]['followers'][i])
                     #Do the actual deletions
                     for i in to_delete:
                         del interactions[sender]['followers'][i]
@@ -343,6 +337,7 @@ def handle_message(message):
         print(message.text)
     except:
         traceback.print_exc()
+        interactions[sender]['waiting'] = False
         print("FATAL ERROR: BAD BAD BAD")
         print("<<Check to make sure the API isn't maxed out whydontya>>")
         bot.send_message(message.chat.id, "FATAL ERROR: API maxed out.")
